@@ -1,4 +1,4 @@
-#define MAX_ERRORS 28
+#define MAX_ERRORS 30
 char *errors[] = {
 	"NULL",
 	"Use = instead of :=.",
@@ -27,5 +27,7 @@ char *errors[] = {
 	"An expression cannot begin with this symbol.",
 	"This number is too large.",
 	"Unexpected end of file.",
-	":= expected"
+	":= expected.",
+	"Symbol max exceeded."
+	"Code length exceeded."
 };

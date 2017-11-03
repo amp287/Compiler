@@ -1,3 +1,5 @@
 ﻿  main.c
+  VM.c
+  Generating Code...
   Compiler.vcxproj -> G:\Code\COP3402 System Software\Compiler\Debug\Compiler.exe
   Compiler.vcxproj -> G:\Code\COP3402 System Software\Compiler\Debug\Compiler.pdb (Partial PDB)

@@ -32,6 +32,7 @@ static char *opcodes[] = {
 	"EQL",
 	"NEQ",
 	"LSS",
+	"LEQ",
 	"GTR",
 	"GEQ"
 };

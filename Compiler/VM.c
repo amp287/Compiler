@@ -46,7 +46,6 @@ int run_VM(char *filename, int print_flag) {
 	get_instructions(fp);
 	
 	if (print_flag) {
-		print_instructions();
 		printf("Instruction    \t\tPC\tBP\tSP\tRegisters\t\tStack\n");
 	}
 

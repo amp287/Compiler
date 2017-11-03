@@ -3,7 +3,7 @@
 #define IDENT_MAX_LENGTH 11
 #define NUM_MAX_LENGTH 5
 #define NUM_SYMBOLS 16
-#define NUM_RESERVED 13
+#define NUM_RESERVED 14
 
 typedef struct TOKEN {
 	int type;

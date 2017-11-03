@@ -1,4 +1,8 @@
 var x, y;
-begin	
-  x = y + 56;
+begin
+  x := 2;
+  if x > y then
+    begin
+      x := y + 56;
+    end
 end.

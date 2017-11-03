@@ -5,17 +5,87 @@
 #include "VM.h"
 #include "Errors.h"
 
+#define MAX_TABLE_SIZE 10
+
+typedef struct {
+	int kind;		//const = const_sym, var = var_sym, proc = proc_sym
+	char name[12];	//name
+	int val;		//number value
+	int level;		//L level
+	int addr;		//M address
+}SYMBOL;
+
+SYMBOL symbol_table[MAX_TABLE_SIZE];
+int symbols_in_table;
+
 static TOKEN *start;
 static TOKEN *token;
+static INSTRUCTION code[MAX_CODE_LENGTH];
 
 int error_flag;
+int code_index;
+int reg;
+int lex_level;
+int m_addr;
 
 int program();
 int expression();
 int statement();
 
+static void print_instructions(int print_flag) {
+	int i;
+	FILE *fp;
+	
+	fp = fopen("Assembly.txt", "w");
+
+	for (i = 0; i < code_index; i++) {
+		printf("%s %d %d %d\n", opcodes[code[i].op], code[i].r, code[i].l, code[i].m);
+		fprintf(fp, "%d %d %d %d\n", code[i].op, code[i].r, code[i].l, code[i].m);
+	}
+
+	fclose(fp);
+}
+
 void error(int code) {
 	printf("ERROR: %s\n", errors[code]);
+}
+
+int add_symbol(TOKEN *token, int value, int type) {
+	if (symbols_in_table > MAX_TABLE_SIZE)
+		return -1;
+	symbol_table[symbols_in_table].kind = type;
+	strcpy(symbol_table[symbols_in_table].name, token->value);
+	symbol_table[symbols_in_table].val = value;
+	symbol_table[symbols_in_table].level = lex_level;
+	symbol_table[symbols_in_table].addr = m_addr;
+	symbols_in_table++;
+	return 0;
+}
+
+//return index
+//-1 on fail
+int check_ident(TOKEN *token) {
+	int i;
+
+	for (i = 0; i < symbols_in_table; i++) {
+		if (!strcmp(token->value, symbol_table[i].name)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+int emit(int op, int r, int l, int m) {
+	if (code_index > MAX_CODE_LENGTH)
+		return 29;
+	
+	code[code_index].op = op;
+	code[code_index].r = r;
+	code[code_index].l = l;
+	code[code_index].m = m;
+	code_index++;
+
+	return 0;
 }
 
 static int get_token() {
@@ -39,6 +109,10 @@ int main(int argv, char *argc[]) {
 	token = NULL;
 	start = NULL;
 	error_flag = 0;
+	symbols_in_table = 0;
+	reg = 0;
+	m_addr = 0;
+	lex_level = 0;
 
 	for (i = 1; i < argv; i++) {
 		if (!strcmp(argc[i], "-l"))
@@ -62,21 +136,30 @@ int main(int argv, char *argc[]) {
 		printf("Parser has encountered an error...\n");
 	}
 
-	getchar();
+	if (assembly_flag)
+		printf("Instructions\n");
+
+	print_instructions(assembly_flag);
+
+	run_VM("Assembly.txt", vm_flag);
+
 	return 0;
 }
-
 
 int is_relation(int token) {
 	switch (token) {
 		case eql_sym:
+			return EQL;
 		case neq_sym:
+			return NEQ;
 		case less_sym:
+			return LSS;
 		case leq_sym:
+			return LEQ;
 		case gtr_sym:
+			return GTR;
 		case geq_sym:
-			return token;
-			break;
+			return GEQ;
 		default:
 			return 0;
 	}
@@ -84,13 +167,28 @@ int is_relation(int token) {
 
 int factor() {
 	int ret = 0;
+	int index = -1;
 
 	if (token->type == ident_sym) {
+
+		if ((index = check_ident(token)) == -1) {
+			error(11);
+			return 11;
+		}
+
+		if (symbol_table[index].kind == proc_sym) {		//check for const or var
+			error(23);
+			return 23;
+		}
+
+		emit(LOD, ++reg, symbol_table[index].level, symbol_table[index].addr);
 
 		if (get_token()) goto EXIT_FACTOR;
 
 	} else if (token->type == num_sym) {
 		
+		emit(LIT, ++reg, 0, atoi(token->value));
+
 		if (get_token()) goto EXIT_FACTOR;
 
 	} else if (token->type == lparent_sym) {
@@ -101,15 +199,15 @@ int factor() {
 			return ret;
 
 		if (token->type != rparent_sym) {
-			error_flag = 22;
-			goto EXIT_FACTOR;
+			error(22);
+			return 22;
 		}
 
 		if (get_token()) goto EXIT_FACTOR;
 
 	} else {
-		error_flag = 23;
-		goto EXIT_FACTOR;
+		error(22);
+		return 22;
 	}
 
 	return ret;
@@ -121,16 +219,26 @@ EXIT_FACTOR:
 
 int term() {
 	int ret = 0;
+	int mult = 0;
 
 	if ((ret = factor()))
 		return ret;
 
 	while (token->type == mult_sym || token->type == slash_sym) {
+		
+		if (token->type == mult_sym)
+			mult = 1;
 
 		if (get_token()) goto EXIT_TERM;
 
 		if ((ret = factor()))
 			return ret;
+
+		if (mult)
+			emit(MUL, reg - 1, reg - 1, reg);
+		else
+			emit(DIV, reg - 1, reg - 1, reg);
+		reg--;
 	}
 
 	return ret;
@@ -142,19 +250,44 @@ EXIT_TERM:
 
 int expression() {
 	int ret = 0;
+	int plus = 0;
 
-	if (token->type == plus_sym || token->type == minus_sym)
-		if (get_token()) goto EXIT_EXPRESSION;
-
-	if ((ret = term()))
-		return ret;
-
-	while (token->type == plus_sym || token->type == minus_sym) {
+	if (token->type == plus_sym || token->type == minus_sym) {
 		
+		if (token->type == plus_sym)
+			plus = 1;
+
 		if (get_token()) goto EXIT_EXPRESSION;
 
 		if ((ret = term()))
 			return ret;
+
+		if (plus)
+			emit(ADD, reg - 1, reg - 1, reg);
+		else
+			emit(SUB, reg - 1, reg - 1, reg);
+		reg--;
+	} else {
+
+		if ((ret = term()))
+			return ret;
+	}
+		
+	while (token->type == plus_sym || token->type == minus_sym) {
+		
+		if (token->type == plus_sym)
+			plus = 1;
+
+		if (get_token()) goto EXIT_EXPRESSION;
+
+		if ((ret = term()))
+			return ret;
+
+		if (plus)
+			emit(ADD, reg - 1, reg - 1, reg);
+		else
+			emit(SUB, reg - 1, reg - 1, reg);
+		reg--;
 	}
 	return ret;
 
@@ -165,6 +298,7 @@ EXIT_EXPRESSION:
 
 int condition() {
 	int ret = 0;
+	int op = 0;
 
 	if (token->type == odd_sym) {
 
@@ -172,22 +306,28 @@ int condition() {
 		
 		if ((ret = expression()))
 			return ret;
+
+		emit(ODD, reg, 0, 0);
+
 	} else {
 		if ((ret = expression()))
 			return ret;
 
-		if (!is_relation(token->type)) {
-			error_flag = 20;
-			goto EXIT_CONDITION;
+		if (!(op = is_relation(token->type))) {
+			error(20);
+			return 20;
 		}
 
 		if (get_token()) goto EXIT_CONDITION;
 
 		if ((ret = expression()))
 			return ret;
+
+		emit(op, reg - 1, reg - 1, reg);
+		reg--;
 	}
 
-	return ret;
+	return 0;
 
 EXIT_CONDITION:
 	error(error_flag);
@@ -196,14 +336,26 @@ EXIT_CONDITION:
 
 int statement() {
 	int ret = 0;
+	int index = -1;
+	int code_temp, code_temp2;
 
 	if (token->type == ident_sym) {
+
+		if ((index = check_ident(token)) == -1) {
+			error(11);
+			return 11;
+		}
+
+		if (symbol_table[index].kind != var_sym) {
+			error(12);
+			return 12;
+		}
 		
 		if (get_token()) goto EXIT_STATEMENT;
 
 		if (token->type != becomes_sym) {
-			error_flag = 27;
-			goto EXIT_STATEMENT;
+			error(27);
+			return 27;
 		}
 
 		if (get_token()) goto EXIT_STATEMENT;
@@ -211,13 +363,26 @@ int statement() {
 		if ((ret = expression()))
 			return ret;
 
+		emit(STO, reg, symbol_table[index].level, symbol_table[index].addr);
+		reg--;
+
 	} else if (token->type == call_sym) {
 
 		if (get_token()) goto EXIT_STATEMENT;
 
 		if (token->type != ident_sym) {
-			error_flag = 14;
-			goto EXIT_STATEMENT;
+			error(14);
+			return 14;
+		}
+
+		if ((index = check_ident(token)) == -1) {
+			error(11);
+			return 11;
+		}
+
+		if (token->type != proc_sym) {
+			error(15);
+			return 15;
 		}
 
 		if (get_token()) goto EXIT_STATEMENT;
@@ -238,8 +403,8 @@ int statement() {
 		}
 
 		if (token->type != end_sym) {
-			error_flag = 8;//Maybe?
-			goto EXIT_STATEMENT;
+			error(8);
+			return 8;
 		}
 
 		if (get_token()) goto EXIT_STATEMENT;
@@ -252,31 +417,48 @@ int statement() {
 			return ret;
 
 		if (token->type != then_sym) {
-			error_flag = 16;
-			goto EXIT_STATEMENT;
+			error(16);
+			return 16;
 		}
 
 		if (get_token()) goto EXIT_STATEMENT;
 
+		code_temp = code_index;
+
+		emit(JPC, reg, 0, 0);
+		reg--;
+
 		if ((ret = statement()))
 			return ret;
 
+		code[code_temp].m = code_index;
+
 	} else if (token->type == while_sym) {
+
+		code_temp = code_index;
 
 		if (get_token()) goto EXIT_STATEMENT;
 		
 		if ((ret = condition()))
 			return ret;
 
+		code_temp2 = code_index;
+
+		emit(JPC, reg, 0, 0);
+		reg--;
+
 		if (token->type != do_sym) {
-			error_flag = 18;
-			goto EXIT_STATEMENT;
+			error(18);
+			return 18;
 		}
 
 		if (get_token()) goto EXIT_STATEMENT;
 
 		if ((ret = statement()))
 			return ret;
+
+		emit(JMP, 0, 0, code_temp);
+		code[code_temp2].m = code_index;
 	}
 	return ret;
 
@@ -287,7 +469,7 @@ EXIT_STATEMENT:
 
 int block() {
 	int ret = 0;
-
+	TOKEN *ident;
 	//Const
 	if (token->type == const_sym) {
 		do {
@@ -295,31 +477,42 @@ int block() {
 			if (get_token()) goto EXIT_BLOCK;
 
 			if (token->type != ident_sym) {
-				error_flag = 4;
-				goto EXIT_BLOCK;
+				error(4);
+				return 4;
 			}
+			
+			ident = token;
 
 			if (get_token()) goto EXIT_BLOCK;
 
 			if (token->type != eql_sym) {
-				error_flag = 3;
-				goto EXIT_BLOCK;
+				error(3);
+				return 3;
 			}
 
 			if (get_token()) goto EXIT_BLOCK;
 
 			if (token->type != num_sym) {
-				error_flag = 2;
-				goto EXIT_BLOCK;
+				error(2);
+				return 2;
 			}
+
+			if (add_symbol(ident, atoi(token->value), const_sym)) {
+				error(28);
+				return 28;
+			}
+
+			emit(INC, 0, 0, 1);
+
+			m_addr++;
 
 			if (get_token()) goto EXIT_BLOCK;
 
 		} while (token->type == comma_sym);
 
 		if (token->type != semicol_sym) {
-			error_flag = 5;
-			goto EXIT_BLOCK;
+			error(5);
+			return 5;
 		}
 
 		if (get_token()) goto EXIT_BLOCK;
@@ -332,17 +525,26 @@ int block() {
 			if (get_token()) goto EXIT_BLOCK;
 
 			if (token->type != ident_sym) {
-				error_flag = 4;
-				goto EXIT_BLOCK;
+				error(4);
+				return 4;
 			}
+			
+			if (add_symbol(token, 0, var_sym)) {
+				error(28);
+				return 28;
+			}
+
+			emit(INC, 0, 0, 1);
+
+			m_addr++;
 
 			if (get_token()) goto EXIT_BLOCK;
 
 		} while (token->type == comma_sym);
 
 		if (token->type != semicol_sym) {
-			error_flag = 5;
-			goto EXIT_BLOCK;
+			error(5);
+			return 5;
 		}
 
 		if (get_token()) goto EXIT_BLOCK;
@@ -350,18 +552,24 @@ int block() {
 
 	//Procedure
 	while (token->type == proc_sym) {
+		
 		if (get_token()) goto EXIT_BLOCK;
 
 		if (token->type != ident_sym) {
-			error_flag = 4;
-			goto EXIT_BLOCK;
+			error(4);
+			return 4;
+		}
+
+		if (add_symbol(token, 0, proc_sym)) {
+			error(28);
+			return 28;
 		}
 
 		if (get_token()) goto EXIT_BLOCK;
 
 		if (token->type != semicol_sym) {
-			error_flag = 5; 
-			goto EXIT_BLOCK;
+			error(5);
+			return 5;
 		}
 
 		if (get_token()) goto EXIT_BLOCK;
@@ -371,8 +579,8 @@ int block() {
 		}
 
 		if (token->type != semicol_sym) {
-			error_flag = 5;
-			goto EXIT_BLOCK;
+			error(5);
+			return 5;
 		}
 
 		if (get_token()) goto EXIT_BLOCK;
@@ -395,7 +603,7 @@ int program() {
 		return error_flag;
 	}
 	
-	if ((ret =block())) {
+	if ((ret = block())) {
 		return ret;
 	}
 	
@@ -403,6 +611,8 @@ int program() {
 		error(9);
 		return 9;
 	}
+
+	emit(SIO, 0, 0, 3);
 
 	return ret;
 }

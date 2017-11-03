@@ -18,6 +18,75 @@ int main(int argv, char *argc[]) {
 
 int compile(){}
 
+int is_relation(int token) {
+	switch (token) {
+		case eql_sym:
+		case neq_sym:
+		case less_sym:
+		case leq_sym:
+		case gtr_sym:
+		case geq_sym:
+			return token;
+			break;
+		default:
+			return 0;
+	}
+}
+
+int factor() {
+	int ret = 0;
+
+	if (current->type == ident_sym) {
+		get_token();
+	} else if (current->type == num_sym) {
+		get_token();
+	} else if (current->type == lparent_sym) {
+		get_token();
+		if ((ret = expression()))
+			return ret;
+		if (current->type != rparent_sym) {
+			error(-1);
+			return -1;
+		}
+		get_token();
+	} else {
+		error(-1);
+		return -1;
+	}
+	return ret;
+}
+
+int term() {
+	int ret = 0;
+
+	if ((ret = factor()))
+		return ret;
+
+	while (current->type == mult_sym || current->type == slash_sym) {
+		get_token();
+		if ((ret = factor()))
+			return ret;
+	}
+	return ret;
+}
+
+int expression() {
+	int ret = 0;
+
+	if (current->type == plus_sym || current->type == minus_sym)
+		get_token();
+
+	if ((ret = term()))
+		return ret;
+
+	while (current->type == plus_sym || current->type == minus_sym) {
+		get_token();
+		if ((ret = term()))
+			return ret;
+	}
+	return ret;
+}
+
 int condition() {
 	int ret = 0;
 
@@ -30,7 +99,19 @@ int condition() {
 		if ((ret = expression()))
 			return ret;
 
+		if (!is_relation(current->type)) {
+			ret = -1;
+			error(ret);
+			return ret;
+		}
+
+		get_token();
+
+		if ((ret = expression()))
+			return ret;
 	}
+
+	return ret;
 }
 
 

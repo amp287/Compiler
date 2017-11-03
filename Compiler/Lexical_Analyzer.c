@@ -24,15 +24,22 @@ void print_lexeme_list();
 void add_to_lexeme(int type, int lex);
 void print_lexeme_table();
 int number();
-int get_token();
+static int get_token();
 void remove_comments();
 int is_symbol();
 void print_code();
 
-int run_lexical_analyzer(char *filename, int print_flag, TOKEN** tokens) {
+char *reserved[] = { "const","var", "procedure", "call", "begin", "end", "if", "then", "else", "while", "do", "read", "write", "odd" };
+int reserved_lex[] = { const_sym, var_sym, proc_sym, call_sym, begin_sym, end_sym, if_sym, then_sym, else_sym, while_sym, do_sym,
+read_sym, write_sym, odd_sym };
+
+char *symbols[] = { "+", "-", "*", "/", "(", ")", "=", ",", ".", "<", ">", ";", ":=", "<=", ">=", "<>" };
+int symbol_lex[] = { plus_sym, minus_sym, mult_sym, slash_sym, rparent_sym, lparent_sym, eql_sym, comma_sym, period_sym, less_sym,
+gtr_sym, semicol_sym, becomes_sym, leq_sym, geq_sym, neq_sym };
+
+TOKEN *run_lexical_analyzer(char *filename, int print_flag) {
 	int error = 0;
 
-	*tokens = NULL;
 	line = 1;
 	col = 0;
 	quit = 0;
@@ -40,8 +47,8 @@ int run_lexical_analyzer(char *filename, int print_flag, TOKEN** tokens) {
 	fp = fopen(filename, "r");
 
 	if (fp == NULL) {
-		printf("Error: %s does not exist!", filename);
-		return -1;
+		printf("Error: %s does not exist!\n", filename);
+		return NULL;
 	}
 
 	code_alloc = 500;
@@ -50,7 +57,7 @@ int run_lexical_analyzer(char *filename, int print_flag, TOKEN** tokens) {
 
 	if (get_token()) {
 		printf("Error: File Empty!\n");
-		return -1;
+		return NULL;
 	}
 
 	while (!quit) {
@@ -79,13 +86,11 @@ int run_lexical_analyzer(char *filename, int print_flag, TOKEN** tokens) {
 		print_lexeme_list();
 	}
 
-	*tokens = start;
-
 MAIN_EXIT:
 	//free_tokens(tokens);
 	free(code);
 
-return 0;
+return start;
 }
 
 int is_symbol() {
@@ -208,7 +213,7 @@ void remove_comments() {
 	get_token();
 }
 
-int get_token() {
+static int get_token() {
 	if (fscanf(fp, "%c", &token) == EOF) {
 		quit = 1;
 		return -1;

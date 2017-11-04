@@ -138,19 +138,20 @@ int is_symbol() {
 void print_code() {
 	int i;
 
-	printf("Source Program:\n");
+	printf("\nSource Program:\n");
 
 	for (i = 0; i < code_length; i++) {
 		printf("%c", code[i]);
 	}
 
-	printf("\n\n");
+	printf("\n");
 }
 
 void print_lexeme_list() {
 	TOKEN *tok = start;
+	TOKEN *tok2 = start;
 
-	printf("Lexeme List:\n");
+	printf("\nLexeme List:\n");
 
 	while (tok != NULL) {
 		if (tok->type == 2 || tok->type == 3)
@@ -160,20 +161,91 @@ void print_lexeme_list() {
 		tok = tok->next;
 	}
 
+	printf("\n\n");
+
+	while (tok2 != NULL) {
+		if (tok2->type == 1)
+			printf("nul_sym ");
+		else if (tok2->type == 2)
+			printf("ident_sym %s ", tok2->value);
+		else if (tok2->type == 3)
+			printf("num_sym %s ", tok2->value);
+		else if (tok2->type == 4)
+			printf("plus_sym ");
+		else if (tok2->type == 5)
+			printf("minus_sym ");
+		else if (tok2->type == 6)
+			printf("mult_sym ");
+		else if (tok2->type == 7)
+			printf("slash_sym ");
+		else if (tok2->type == 8)
+			printf("odd_sym ");
+		else if (tok2->type == 9)
+			printf("eql_sym ");
+		else if (tok2->type == 10)
+			printf("neq_sym ");
+		else if (tok2->type == 11)
+			printf("less_sym ");
+		else if (tok2->type == 12)
+			printf("leq_sym ");
+		else if (tok2->type == 13)
+			printf("gtr_sym ");
+		else if (tok2->type == 14)
+			printf("geq_sym ");
+		else if (tok2->type == 15)
+			printf("lparent_sym ");
+		else if (tok2->type == 16)
+			printf("rparent_sym ");
+		else if (tok2->type == 17)
+			printf("comma_sym ");
+		else if (tok2->type == 18)
+			printf("semicol_sym ");
+		else if (tok2->type == 19)
+			printf("period_sym ");
+		else if (tok2->type == 20)
+			printf("becomes_sym ");
+		else if (tok2->type == 21)
+			printf("begin_sym ");
+		else if (tok2->type == 22)
+			printf("end_sym ");
+		else if (tok2->type == 23)
+			printf("if_sym ");
+		else if (tok2->type == 24)
+			printf("then_sym ");
+		else if (tok2->type == 25)
+			printf("while_sym ");
+		else if (tok2->type == 26)
+			printf("do_sym ");
+		else if (tok2->type == 27)
+			printf("call_sym ");
+		else if (tok2->type == 28)
+			printf("const_sym ");
+		else if (tok2->type == 29)
+			printf("var_sym ");
+		else if (tok2->type == 30)
+			printf("proc_sym ");
+		else if (tok2->type == 31)
+			printf("write_sym ");
+		else if (tok2->type == 32)
+			printf("read_sym ");
+		else if (tok2->type == 33)
+			printf("else_sym ");
+
+		tok2 = tok2->next;
+	}
+
 	printf("\n");
 }
 
 void print_lexeme_table() {
 	TOKEN *tok = start;
 
-	printf("Lexeme Table:\nLexeme\t\tToken Type\n");
+	printf("\nLexeme Table:\nLexeme\t\tToken Type\n");
 
 	while (tok != NULL) {
 		printf("%s\t\t%d\n", tok->value, tok->type);
 		tok = tok->next;
 	}
-
-	printf("\n");
 }
 
 void remove_comments() {

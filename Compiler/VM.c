@@ -46,7 +46,7 @@ int run_VM(char *filename, int print_flag) {
 	get_instructions(fp);
 	
 	if (print_flag) {
-		printf("Instruction    \t\tPC\tBP\tSP\tRegisters\t\tStack\n");
+		printf("\nInstruction    \t\tPC\tBP\tSP\tRegisters\t\tStack\n");
 	}
 
 	while (!halt) {
@@ -98,7 +98,7 @@ void get_instructions(FILE *fp) {
 void print_instructions() {
 	int i;
 
-	printf("Instructions:\n");
+	printf("\nInstructions:\n");
 	
 	for (i = 0; i < instruction_count; i++) {
 		char op[4];

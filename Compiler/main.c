@@ -186,7 +186,10 @@ int factor() {
             return 23;
         }
 
-        emit(LOD, ++reg, symbol_table[index].level, symbol_table[index].addr);
+		if (symbol_table[index].kind == const_sym)
+			emit(LIT, ++reg, 0, symbol_table[index].val);
+		else
+			emit(LOD, ++reg, symbol_table[index].level, symbol_table[index].addr);
 
         if (get_token()) goto EXIT_FACTOR;
 
@@ -465,10 +468,7 @@ int statement() {
         emit(JMP, 0, 0, code_temp);
         code[code_temp2].m = code_index;
 	}
-	else {
-		error_flag = 7;
-		goto EXIT_STATEMENT;
-	}
+
     return ret;
 
     EXIT_STATEMENT:

@@ -211,8 +211,8 @@ int factor() {
         if (get_token()) goto EXIT_FACTOR;
 
     } else {
-        error(22);
-        return 22;
+        error(23);
+        return 23;
     }
 
     return ret;

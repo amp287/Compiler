@@ -39,6 +39,7 @@ gtr_sym, semicol_sym, becomes_sym, leq_sym, geq_sym, neq_sym };
 
 TOKEN *run_lexical_analyzer(char *filename, int print_flag) {
 	int error = 0;
+	int ret = 0;
 
 	line = 1;
 	col = 0;
@@ -62,10 +63,10 @@ TOKEN *run_lexical_analyzer(char *filename, int print_flag) {
 
 	while (!quit) {
 		if (isalpha(token)) {						//ident or reserved
-			if(ident_or_reserved())
+			if((ret = ident_or_reserved()))
 				goto MAIN_EXIT;
 		} else if (isdigit(token)) {		//number
-			if(number())
+			if((ret = number()))
 				goto MAIN_EXIT;
 		} else if (token == ' ' || iscntrl(token)) {
 			if(get_token())
@@ -74,7 +75,7 @@ TOKEN *run_lexical_analyzer(char *filename, int print_flag) {
 		} else if (token == '/') {
 			remove_comments();
 		} else {
-			if (is_symbol())							//Symbol
+			if ((ret = is_symbol()))							//Symbol
 				goto MAIN_EXIT;
 		}
 		memset(ident_buffer, 0, IDENT_MAX_LENGTH + 1);
@@ -87,10 +88,15 @@ TOKEN *run_lexical_analyzer(char *filename, int print_flag) {
 	}
 
 MAIN_EXIT:
-	//free_tokens(tokens);
 	free(code);
-
-return start;
+	
+	if(ret == 0)
+	
+		return start;
+	
+	free_tokens(start);
+	
+	return NULL;
 }
 
 int is_symbol() {

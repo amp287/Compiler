@@ -34,7 +34,7 @@ int reserved_lex[] = { const_sym, var_sym, proc_sym, call_sym, begin_sym, end_sy
 read_sym, write_sym, odd_sym };
 
 char *symbols[] = { "+", "-", "*", "/", "(", ")", "=", ",", ".", "<", ">", ";", ":=", "<=", ">=", "<>" };
-int symbol_lex[] = { plus_sym, minus_sym, mult_sym, slash_sym, rparent_sym, lparent_sym, eql_sym, comma_sym, period_sym, less_sym,
+int symbol_lex[] = { plus_sym, minus_sym, mult_sym, slash_sym, lparent_sym, rparent_sym, eql_sym, comma_sym, period_sym, less_sym,
 gtr_sym, semicol_sym, becomes_sym, leq_sym, geq_sym, neq_sym };
 
 TOKEN *run_lexical_analyzer(char *filename, int print_flag) {
@@ -91,7 +91,6 @@ MAIN_EXIT:
 	free(code);
 	
 	if(ret == 0)
-	
 		return start;
 	
 	free_tokens(start);
@@ -385,7 +384,7 @@ int ident_or_reserved() {
 	}
 
 	if (length == IDENT_MAX_LENGTH) {
-		if (isalpha(token)) {
+		if (isalpha(token) || isdigit(token)) {
 			printf("Error: Identifier [%s] at %d:%d exceeds max size...\n", ident_buffer, prev_line, (int)(prev_col - strlen(ident_buffer)));
 			return -1;
 		}

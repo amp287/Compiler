@@ -464,7 +464,11 @@ int statement() {
 
         emit(JMP, 0, 0, code_temp);
         code[code_temp2].m = code_index;
-    }
+	}
+	else {
+		error_flag = 7;
+		goto EXIT_STATEMENT;
+	}
     return ret;
 
     EXIT_STATEMENT:
@@ -489,6 +493,12 @@ int block() {
             ident = token;
 
             if (get_token()) goto EXIT_BLOCK;
+
+
+			if (token->type == becomes_sym) {
+				error(1);
+				return 1;
+			}
 
             if (token->type != eql_sym) {
                 error(3);

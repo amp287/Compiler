@@ -89,12 +89,12 @@ TOKEN *run_lexical_analyzer(char *filename, int print_flag) {
 
 MAIN_EXIT:
 	free(code);
-	
+
 	if(ret == 0)
 		return start;
-	
+
 	free_tokens(start);
-	
+
 	return NULL;
 }
 
@@ -167,7 +167,7 @@ void print_lexeme_list() {
 	}
 
 	printf("\n\n");
-
+	
 	while (tok2 != NULL) {
 		if (tok2->type == 1)
 			printf("nul_sym ");

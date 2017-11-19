@@ -52,14 +52,14 @@ void error(int code) {
     printf("ERROR: %s\n", errors[code]);
 }
 
-int add_symbol(TOKEN *token, int value, int type) {
+int add_symbol(TOKEN *token, int value, int addr, int type) {
     if (symbols_in_table > MAX_TABLE_SIZE)
         return -1;
     symbol_table[symbols_in_table].kind = type;
     strcpy(symbol_table[symbols_in_table].name, token->value);
     symbol_table[symbols_in_table].val = value;
     symbol_table[symbols_in_table].level = lex_level;
-    symbol_table[symbols_in_table].addr = m_addr;
+    symbol_table[symbols_in_table].addr = addr;
     symbols_in_table++;
     return 0;
 }
@@ -78,8 +78,10 @@ int check_ident(TOKEN *token) {
 }
 
 int emit(int op, int r, int l, int m) {
-    if (code_index > MAX_CODE_LENGTH)
-        return 29;
+    if (code_index > MAX_CODE_LENGTH){
+      error_flag = 29;
+      return 29;
+    }
 
     code[code_index].op = op;
     code[code_index].r = r;
@@ -112,7 +114,7 @@ int main(int argv, char *argc[]) {
     start = NULL;
     error_flag = 0;
     symbols_in_table = 0;
-    reg = 0;
+    reg = -1;
     m_addr = 0;
     lex_level = 0;
 
@@ -189,7 +191,7 @@ int factor() {
 		if (symbol_table[index].kind == const_sym)
 			emit(LIT, ++reg, 0, symbol_table[index].val);
 		else
-			emit(LOD, ++reg, symbol_table[index].level, symbol_table[index].addr);
+			emit(LOD, ++reg, lex_level - symbol_table[index].level, symbol_table[index].addr);
 
         if (get_token()) goto EXIT_FACTOR;
 
@@ -371,7 +373,7 @@ int statement() {
         if ((ret = expression()))
             return ret;
 
-        emit(STO, reg, symbol_table[index].level, symbol_table[index].addr);
+        emit(STO, reg, lex_level - symbol_table[index].level, symbol_table[index].addr);
         reg--;
 
     } else if (token->type == call_sym) {
@@ -388,10 +390,12 @@ int statement() {
             return 11;
         }
 
-        if (token->type != proc_sym) {
+        if (symbol_table[index].kind != proc_sym) {
             error(15);
             return 15;
         }
+
+        emit(CAL, 0, lex_level - symbol_table[index].level, symbol_table[index].addr);
 
         if (get_token()) goto EXIT_STATEMENT;
 
@@ -467,7 +471,38 @@ int statement() {
 
         emit(JMP, 0, 0, code_temp);
         code[code_temp2].m = code_index;
-	}
+
+	} else if(token->type == read_sym) {
+
+        if(get_token()) goto EXIT_STATEMENT;
+
+        if ((index = check_ident(token)) == -1) {
+            error(11);
+            return 11;
+        }
+
+        if (symbol_table[index].kind != proc_sym) {
+            error(15);
+            return 15;
+        }
+
+        if(emit(SIO, ++reg, 0, 2) != 0) goto EXIT_STATEMENT;
+
+        if(emit(STO, reg, lex_level - symbol_table[index].level, symbol_table[index].addr) != 0) goto EXIT_STATEMENT;
+
+        reg--;
+
+  } else if(token->type == write_sym) {
+
+      if(get_token()) goto EXIT_STATEMENT;
+
+      if((ret = expression()) != 0)
+          return ret;
+
+      if(emit(SIO, reg, 0, 1) != 0) goto EXIT_STATEMENT;
+
+      reg--;
+  }
 
     return ret;
 
@@ -477,8 +512,16 @@ int statement() {
 }
 
 int block() {
-    int ret = 0;
+    int ret = 0, space = 4, jump_addr = 0;
     TOKEN *ident;
+
+    lex_level++;
+    m_addr = 4;
+
+    jump_addr = code_index;
+
+    if(emit(JMP, 0, 0, 0) != 0) goto EXIT_BLOCK;
+
     //Const
     if (token->type == const_sym) {
         do {
@@ -494,11 +537,10 @@ int block() {
 
             if (get_token()) goto EXIT_BLOCK;
 
-
-			if (token->type == becomes_sym) {
-				error(1);
-				return 1;
-			}
+      			if (token->type == becomes_sym) {
+      				error(1);
+      				return 1;
+      			}
 
             if (token->type != eql_sym) {
                 error(3);
@@ -512,14 +554,10 @@ int block() {
                 return 2;
             }
 
-            if (add_symbol(ident, atoi(token->value), const_sym)) {
+            if (add_symbol(ident, atoi(token->value), 0, const_sym)) {
                 error(28);
                 return 28;
             }
-
-            emit(INC, 0, 0, 1);
-
-            m_addr++;
 
             if (get_token()) goto EXIT_BLOCK;
 
@@ -536,7 +574,7 @@ int block() {
     //Var
     if (token->type == var_sym) {
         do {
-
+            space++;
             if (get_token()) goto EXIT_BLOCK;
 
             if (token->type != ident_sym) {
@@ -544,12 +582,10 @@ int block() {
                 return 4;
             }
 
-            if (add_symbol(token, 0, var_sym)) {
+            if (add_symbol(token, 0, m_addr, var_sym)) {
                 error(28);
                 return 28;
             }
-
-            emit(INC, 0, 0, 1);
 
             m_addr++;
 
@@ -568,6 +604,8 @@ int block() {
     //Procedure
     while (token->type == proc_sym) {
 
+        if(emit(JMP, 0, 0, 0) != 0) goto EXIT_BLOCK;
+
         if (get_token()) goto EXIT_BLOCK;
 
         if (token->type != ident_sym) {
@@ -575,7 +613,7 @@ int block() {
             return 4;
         }
 
-        if (add_symbol(token, 0, proc_sym)) {
+        if (add_symbol(token, 0, code_index + 1, proc_sym)) {
             error(28);
             return 28;
         }
@@ -601,7 +639,15 @@ int block() {
         if (get_token()) goto EXIT_BLOCK;
     }
 
+    code[jump_addr].m = code_index;
+
+    if(emit(INC, 0, 0, space) != 0) goto EXIT_BLOCK;
+
     ret = statement();
+
+    if(emit(RTN, 0, 0, 0) != 0) goto EXIT_BLOCK;
+
+    lex_level--;
 
     return ret;
 

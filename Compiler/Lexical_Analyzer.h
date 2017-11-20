@@ -27,4 +27,3 @@ extern int reserved_lex[];
 
 extern char *symbols[];
 extern int symbol_lex[];
-

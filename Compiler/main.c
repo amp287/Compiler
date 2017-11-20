@@ -7,17 +7,18 @@
 #include "VM.h"
 #include "Errors.h"
 
-#define MAX_TABLE_SIZE 10
+#define MAX_TABLE_SIZE 40
 
-typedef struct {
-    int kind;		//const = const_sym, var = var_sym, proc = proc_sym
+typedef struct SYMBOL{
+    int type;		//const = const_sym, var = var_sym, proc = proc_sym
     char name[12];	//name
-    int val;		//number value
+    int value;		//number value
     int level;		//L level
     int addr;		//M address
+    struct SYMBOL *next;
 }SYMBOL;
 
-SYMBOL symbol_table[MAX_TABLE_SIZE];
+SYMBOL *symbol_stack;
 int symbols_in_table;
 
 static TOKEN *start;
@@ -33,6 +34,30 @@ int m_addr;
 int program();
 int expression();
 int statement();
+
+//FOR DEBUGING
+void print_symbols(){
+  SYMBOL *temp = symbol_stack;
+  printf("SYMBOLS:\n");
+  for(; temp != NULL; temp = temp->next){
+    printf("%s \n", temp->name);
+  }
+}
+
+void remove_symbols(int level){
+  SYMBOL *temp = symbol_stack;
+  SYMBOL *prev = symbol_stack;
+
+  for(;temp != NULL; temp = temp->next){
+    if(temp->level == level && temp->type == var_sym){
+      prev->next = temp->next;
+      printf("Free: %s\n", temp->name);
+      free(temp);
+      symbols_in_table--;
+    }
+    prev = temp;
+  }
+}
 
 static void print_instructions(int print_flag) {
     int i;
@@ -52,29 +77,40 @@ void error(int code) {
     printf("ERROR: %s\n", errors[code]);
 }
 
-int add_symbol(TOKEN *token, int value, int addr, int type) {
-    if (symbols_in_table > MAX_TABLE_SIZE)
-        return -1;
-    symbol_table[symbols_in_table].kind = type;
-    strcpy(symbol_table[symbols_in_table].name, token->value);
-    symbol_table[symbols_in_table].val = value;
-    symbol_table[symbols_in_table].level = lex_level;
-    symbol_table[symbols_in_table].addr = addr;
+SYMBOL *add_symbol(TOKEN *token, int value, int addr, int type) {
+    SYMBOL *sym = malloc(sizeof(SYMBOL));
+
+    sym->type = type;
+    strcpy(sym->name, token->value);
+    sym->value = value;
+    sym->level = lex_level;
+    sym->addr = addr;
+    sym->next = NULL;
+
+    if (symbol_stack == NULL){
+      symbol_stack = sym;
+      return sym;
+    }
+
+    sym->next = symbol_stack;
+
+    symbol_stack = sym;
+
     symbols_in_table++;
-    return 0;
+    return sym;
 }
 
-//return index
-//-1 on fail
-int check_ident(TOKEN *token) {
-    int i;
+//return SYMBOL*
+//NULL on fail
+SYMBOL *check_ident(TOKEN *token) {
+    SYMBOL *temp = symbol_stack;
 
-    for (i = 0; i < symbols_in_table; i++) {
-        if (!strcmp(token->value, symbol_table[i].name)) {
-            return i;
-        }
+    for(;temp != NULL; temp = temp->next){
+      if(!strcmp(token->value, temp->name))
+        return temp;
     }
-    return -1;
+
+    return NULL;
 }
 
 int emit(int op, int r, int l, int m) {
@@ -113,6 +149,7 @@ int main(int argv, char *argc[]) {
     token = NULL;
     start = NULL;
     error_flag = 0;
+    symbol_stack = NULL;
     symbols_in_table = 0;
     reg = -1;
     m_addr = 0;
@@ -174,24 +211,24 @@ int is_relation(int token) {
 
 int factor() {
     int ret = 0;
-    int index = -1;
+    SYMBOL *sym = NULL;
 
     if (token->type == ident_sym) {
 
-        if ((index = check_ident(token)) == -1) {
+        if ((sym = check_ident(token)) == NULL) {
             error(11);
             return 11;
         }
 
-        if (symbol_table[index].kind == proc_sym) {		//check for const or var
+        if (sym->type == proc_sym) {		//check for const or var
             error(23);
             return 23;
         }
 
-		if (symbol_table[index].kind == const_sym)
-			emit(LIT, ++reg, 0, symbol_table[index].val);
+		if (sym->type == const_sym)
+			emit(LIT, ++reg, 0, sym->value);
 		else
-			emit(LOD, ++reg, lex_level - symbol_table[index].level, symbol_table[index].addr);
+			emit(LOD, ++reg, lex_level - sym->level, sym->addr);
 
         if (get_token()) goto EXIT_FACTOR;
 
@@ -346,17 +383,17 @@ int condition() {
 
 int statement() {
     int ret = 0;
-    int index = -1;
+    SYMBOL *sym = NULL;
     int code_temp, code_temp2;
 
     if (token->type == ident_sym) {
 
-        if ((index = check_ident(token)) == -1) {
+        if ((sym = check_ident(token)) == NULL) {
             error(11);
             return 11;
         }
 
-        if (symbol_table[index].kind != var_sym) {
+        if (sym->type != var_sym) {
             error(12);
             return 12;
         }
@@ -373,7 +410,7 @@ int statement() {
         if ((ret = expression()))
             return ret;
 
-        emit(STO, reg, lex_level - symbol_table[index].level, symbol_table[index].addr);
+        emit(STO, reg, lex_level - sym->level, sym->addr);
         reg--;
 
     } else if (token->type == call_sym) {
@@ -385,17 +422,17 @@ int statement() {
             return 14;
         }
 
-        if ((index = check_ident(token)) == -1) {
+        if ((sym = check_ident(token)) == NULL) {
             error(11);
             return 11;
         }
 
-        if (symbol_table[index].kind != proc_sym) {
+        if (sym->type != proc_sym) {
             error(15);
             return 15;
         }
 
-        emit(CAL, 0, lex_level - symbol_table[index].level, symbol_table[index].addr);
+        emit(CAL, 0, lex_level - sym->level, sym->addr);
 
         if (get_token()) goto EXIT_STATEMENT;
 
@@ -476,19 +513,19 @@ int statement() {
 
         if(get_token()) goto EXIT_STATEMENT;
 
-        if ((index = check_ident(token)) == -1) {
+        if ((sym = check_ident(token)) == NULL) {
             error(11);
             return 11;
         }
 
-        if (symbol_table[index].kind != proc_sym) {
-            error(15);
-            return 15;
+        if (sym->type != var_sym) {
+            error(12);
+            return 12;
         }
 
         if(emit(SIO, ++reg, 0, 2) != 0) goto EXIT_STATEMENT;
 
-        if(emit(STO, reg, lex_level - symbol_table[index].level, symbol_table[index].addr) != 0) goto EXIT_STATEMENT;
+        if(emit(STO, reg, lex_level - sym->level, sym->addr) != 0) goto EXIT_STATEMENT;
 
         reg--;
 
@@ -514,6 +551,7 @@ int statement() {
 int block() {
     int ret = 0, space = 4, jump_addr = 0;
     TOKEN *ident;
+    SYMBOL *procedure = NULL;
 
     lex_level++;
     m_addr = 4;
@@ -554,7 +592,7 @@ int block() {
                 return 2;
             }
 
-            if (add_symbol(ident, atoi(token->value), 0, const_sym)) {
+            if (!add_symbol(ident, atoi(token->value), 0, const_sym)) {
                 error(28);
                 return 28;
             }
@@ -582,7 +620,7 @@ int block() {
                 return 4;
             }
 
-            if (add_symbol(token, 0, m_addr, var_sym)) {
+            if (!add_symbol(token, 0, m_addr, var_sym)) {
                 error(28);
                 return 28;
             }
@@ -604,8 +642,6 @@ int block() {
     //Procedure
     while (token->type == proc_sym) {
 
-        if(emit(JMP, 0, 0, 0) != 0) goto EXIT_BLOCK;
-
         if (get_token()) goto EXIT_BLOCK;
 
         if (token->type != ident_sym) {
@@ -613,7 +649,7 @@ int block() {
             return 4;
         }
 
-        if (add_symbol(token, 0, code_index + 1, proc_sym)) {
+        if (!(procedure = add_symbol(token, 0, code_index + 1, proc_sym))) {
             error(28);
             return 28;
         }
@@ -637,6 +673,7 @@ int block() {
         }
 
         if (get_token()) goto EXIT_BLOCK;
+
     }
 
     code[jump_addr].m = code_index;
@@ -644,6 +681,9 @@ int block() {
     if(emit(INC, 0, 0, space) != 0) goto EXIT_BLOCK;
 
     ret = statement();
+
+    remove_symbols(lex_level);
+
     if(lex_level != 1)
       if(emit(RTN, 0, 0, 0) != 0) goto EXIT_BLOCK;
 

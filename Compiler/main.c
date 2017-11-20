@@ -51,7 +51,6 @@ void remove_symbols(int level){
   for(;temp != NULL; temp = temp->next){
     if(temp->level == level && temp->type == var_sym){
       prev->next = temp->next;
-      printf("Free: %s\n", temp->name);
       free(temp);
       symbols_in_table--;
     }
@@ -169,7 +168,6 @@ int main(int argv, char *argc[]) {
 
     if ((start = run_lexical_analyzer(argc[file_index], lex_flag)) == NULL) {
         printf("Lexigraphical Analyzer has encountered an error...\n");
-        getchar();
         return 0;
     }
 
@@ -225,12 +223,12 @@ int factor() {
             return 23;
         }
 
-		if (sym->type == const_sym)
-			emit(LIT, ++reg, 0, sym->value);
-		else
-			emit(LOD, ++reg, lex_level - sym->level, sym->addr);
+    		if (sym->type == const_sym)
+    			emit(LIT, ++reg, 0, sym->value);
+    		else
+    			emit(LOD, ++reg, lex_level - sym->level, sym->addr);
 
-        if (get_token()) goto EXIT_FACTOR;
+            if (get_token()) goto EXIT_FACTOR;
 
     } else if (token->type == num_sym) {
 
@@ -481,6 +479,27 @@ int statement() {
             return ret;
 
         code[code_temp].m = code_index;
+
+        // if the if has a begin statement inside it we need to check and see if the next symbol is else
+        // if the if statement has a signle statement then the else will be in the current token
+        if(token->type == else_sym || (token->next != NULL && token->next->type == else_sym)){
+
+            code[code_temp].m = code_index + 1;
+
+            code_temp = code_index;
+
+            if(emit(JMP, 0, 0, 0) != 0) goto EXIT_STATEMENT;
+
+            if(token->next != NULL && token->next->type == else_sym)
+              if(get_token()) goto EXIT_STATEMENT;
+
+            if (get_token()) goto EXIT_STATEMENT;
+
+            if((ret = statement()))
+                return ret;
+
+            code[code_temp].m = code_index;
+          }
 
     } else if (token->type == while_sym) {
 

@@ -16,7 +16,8 @@ int registers[MAX_REGISTERS];
 int stack[MAX_STACK_HEIGHT];
 int activation_records[MAX_LEXI_LEVELS];
 
-char *output_buffer;
+int *output_buffer;
+int output_buffer_length;
 
 void get_instructions(FILE *fp);
 void init();
@@ -44,7 +45,7 @@ int run_VM(char *filename, int print_flag) {
 	init();
 
 	get_instructions(fp);
-	
+
 	if (print_flag) {
 		printf("\nInstruction    \t\tPC\tBP\tSP\tRegisters\t\tStack\n");
 	}
@@ -77,7 +78,7 @@ void init() {
 	memset(stack, 0, sizeof(int) * MAX_STACK_HEIGHT);
 	memset(activation_records, 0, sizeof(int) * MAX_LEXI_LEVELS);
 
-	output_buffer = calloc(MAX_OUTPUT_BUFFER_LENGTH, sizeof(char));
+	output_buffer = calloc(MAX_OUTPUT_BUFFER_LENGTH, sizeof(int));
 }
 
 //Reads the file given and loads the code to be run as well as the
@@ -99,7 +100,7 @@ void print_instructions() {
 	int i;
 
 	printf("\nInstructions:\n");
-	
+
 	for (i = 0; i < instruction_count; i++) {
 		char op[4];
 		int r, l, m;
@@ -114,7 +115,7 @@ void print_instructions() {
 }
 
 //Updates the cpus instruction register and increments the program counter by 1
-//return -1 if the pre-fetch program counter is greater than the lines of code read in 
+//return -1 if the pre-fetch program counter is greater than the lines of code read in
 //0 otherwise
 int fetch() {
 	if (cpu.pc < instruction_count) {
@@ -166,12 +167,14 @@ int execute() {
 				cpu.pc = cpu.ir.m;
 			break;
 		case SIO:
-			if (cpu.ir.m == 1)
-				sprintf(output_buffer, "%d\n", registers[cpu.ir.r]);
-			else if (cpu.ir.m == 2)
+			if (cpu.ir.m == 1){
+					if(output_buffer_length + 1 < MAX_OUTPUT_BUFFER_LENGTH)
+						output_buffer[output_buffer_length++] = registers[cpu.ir.r];
+			} else if (cpu.ir.m == 2) {
 				scanf("%d", &registers[cpu.ir.r]);
-			else if (cpu.ir.m == 3)
+			} else if (cpu.ir.m == 3){
 				return 1; //halt
+			}
 			break;
 		case NEG:
 			registers[cpu.ir.r] = -1 * registers[cpu.ir.l];
@@ -232,14 +235,19 @@ void print_info() {
 			printf("|");
 			ar_printed++;
 		}
-			
+
 		printf("%d ", stack[i]);
 	}
 	printf("\n");
 }
 
 void print_output() {
-	printf("Program Output: %s", output_buffer);
+	int i;
+	printf("Program Output: ");
+	for(i = 0; i < output_buffer_length; i++)
+		printf("%d", output_buffer[i]);
+
+		printf("\n");
 }
 
 //Moves down the static chain l times

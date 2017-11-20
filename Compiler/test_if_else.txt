@@ -1,0 +1,19 @@
+var x, y;
+begin
+  x:=0;
+  y:=2;
+  if x = 1 then
+    begin
+      write 2;
+      write 3;
+      write 4;
+      write 5;
+    end
+  else
+    begin
+      write 6;
+      write 7;
+      write 8;
+      write 9;
+    end
+end.

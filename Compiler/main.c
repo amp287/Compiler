@@ -644,8 +644,8 @@ int block() {
     if(emit(INC, 0, 0, space) != 0) goto EXIT_BLOCK;
 
     ret = statement();
-
-    if(emit(RTN, 0, 0, 0) != 0) goto EXIT_BLOCK;
+    if(lex_level != 1)
+      if(emit(RTN, 0, 0, 0) != 0) goto EXIT_BLOCK;
 
     lex_level--;
 
